@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-11T18:45:00+03:00",
+  "title": "Design System: Saint Paul Camp Scoring",
+  "extensions": {
+    "colorMeta": {
+      "night-aubergine": { "role": "neutral", "displayName": "Night Aubergine", "canonical": "oklch(0.16 0.022 306)", "tonalRamp": ["oklch(0.15 0.022 306)", "oklch(0.25 0.022 306)", "oklch(0.35 0.022 306)", "oklch(0.45 0.022 306)", "oklch(0.55 0.018 306)", "oklch(0.68 0.014 306)", "oklch(0.82 0.01 306)", "oklch(0.95 0.006 306)"] },
+      "saint-paul-violet": { "role": "primary", "displayName": "Saint Paul Violet", "canonical": "oklch(0.71 0.15 296)", "tonalRamp": ["oklch(0.15 0.05 296)", "oklch(0.25 0.08 296)", "oklch(0.35 0.11 296)", "oklch(0.45 0.14 296)", "oklch(0.55 0.16 296)", "oklch(0.68 0.15 296)", "oklch(0.82 0.1 296)", "oklch(0.95 0.03 296)"] }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Arabic Headline", "purpose": "Screen titles and the current operational task." },
+      "body": { "displayName": "Arabic Body", "purpose": "Instructions, errors, and wallet history." }
+    },
+    "shadows": [
+      { "name": "sticky-header", "value": "0 10px 35px oklch(0.08 0.02 306 / .25)", "purpose": "Separates the sticky identity bar while scrolling." }
+    ],
+    "motion": [
+      { "name": "state-response", "value": "180ms cubic-bezier(.22,1,.36,1)", "purpose": "Pressed and state feedback only." }
+    ],
+    "breakpoints": [
+      { "name": "mobile-min", "value": "320px" },
+      { "name": "app-max", "value": "520px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "One decisive mobile action per operational section.",
+      "html": "<button class=\"ds-btn-primary\">تأكيد النتيجة</button>",
+      "css": ".ds-btn-primary { min-height: 52px; padding: 12px 18px; color: oklch(0.16 0.022 306); background: oklch(0.71 0.15 296); border: 1px solid transparent; border-radius: 14px; font: 750 .84rem/1.35 'Segoe UI', Tahoma, Arial, sans-serif; transition: transform 180ms cubic-bezier(.22,1,.36,1); } .ds-btn-primary:active { transform: scale(.98); } .ds-btn-primary:focus-visible { outline: 3px solid oklch(0.71 0.15 296); outline-offset: 3px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Large RTL field for night-time phone entry.",
+      "html": "<input class=\"ds-input\" placeholder=\"اكتب السبب\" />",
+      "css": ".ds-input { width: 100%; min-height: 50px; padding: 11px 13px; color: oklch(0.94 0.012 300); background: oklch(0.205 0.027 306); border: 1px solid oklch(0.34 0.035 306); border-radius: 13px; font: 650 .84rem/1.35 'Segoe UI', Tahoma, Arial, sans-serif; } .ds-input:focus-visible { outline: 3px solid oklch(0.71 0.15 296); outline-offset: 3px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Night Match Desk",
+    "overview": "A focused athletic operations interface for volunteers working quickly on phones at night. Energy comes from decisive hierarchy, compact timelines, and immediate feedback rather than decoration.",
+    "keyCharacteristics": ["Egyptian Arabic RTL", "Mobile-only operational flows", "Tonal dark surfaces", "One violet brand voice", "State-driven motion"],
+    "rules": [
+      { "name": "The One Violet Rule", "body": "Violet is the only brand accent and signals action or current state.", "section": "colors" },
+      { "name": "The Active Surface Rule", "body": "Only the task the user can act on now earns the strongest separation.", "section": "elevation" }
+    ],
+    "dos": ["Do put the next operational action first.", "Do use large touch targets and short Egyptian Arabic labels."],
+    "donts": ["Don't build a generic SaaS dashboard.", "Don't use neon, gradients, glass effects, or colored side stripes."]
+  }
+}
