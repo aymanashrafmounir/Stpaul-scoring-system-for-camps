@@ -11,6 +11,18 @@
 /index.html
   Cache-Control: no-cache, no-store, must-revalidate
 
+/admin
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/admin/*
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/scorer
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/nfc
+  Cache-Control: no-cache, no-store, must-revalidate
+
 /nfc/*
   Referrer-Policy: no-referrer
   Cache-Control: no-store
