@@ -2,8 +2,8 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(21);
 
-select is((select count(*) from public.match_slots where slot_type='game'),18::bigint,'legacy slots preserved as games');
-select is((select count(*) from public.slot_participants),36::bigint,'legacy game participants preserved');
+select is((select count(*) from public.match_slots where slot_type='game'),32::bigint,'scheduled slots are games');
+select is((select count(*) from public.slot_participants),64::bigint,'each scheduled game has two participants');
 select is((select winner_score from public.match_slots limit 1),10,'legacy configured winner score preserved');
 select is((select bonus_limit from public.match_slots limit 1),20,'legacy bonus allowance copied per slot');
 select ok(not has_function_privilege('anon','public.upsert_slot_v2(jsonb)','EXECUTE'),'anon cannot manage slots');

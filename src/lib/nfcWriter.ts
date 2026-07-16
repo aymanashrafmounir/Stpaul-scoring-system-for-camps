@@ -1,23 +1,4 @@
-interface NdefRecordInit {
-  recordType: 'url'
-  data: string
-}
-
-interface NdefMessageInit {
-  records: NdefRecordInit[]
-}
-
-interface NdefReader {
-  write(message: NdefMessageInit): Promise<void>
-}
-
-type NdefReaderConstructor = new () => NdefReader
-
-declare global {
-  interface Window {
-    NDEFReader?: NdefReaderConstructor
-  }
-}
+import "./nfcReader";
 
 export const canWriteNfc = () => window.isSecureContext && Boolean(window.NDEFReader)
 

@@ -154,6 +154,11 @@ input::placeholder, textarea::placeholder { color: oklch(0.58 0.025 303); }
 .reverse-form { grid-column: 1 / -1; padding: 0 0 14px; display: grid; gap: 10px; }
 .inline-editor { padding: 17px; display: grid; gap: 14px; background: var(--raised); border: 1px solid var(--border); border-radius: 17px; }
 .inline-editor.prominent { border-color: color-mix(in oklch, var(--violet), transparent 30%); }
+.team-selector { display: grid; gap: var(--space-2); }
+.field-label { color: var(--muted); font-size: .84rem; font-weight: 650; }
+.nfc-scan-button { width: 100%; }
+.nfc-scan-button svg { width: 20px; }
+.nfc-scan-hint { color: var(--muted); font-size: .72rem; line-height: 1.5; }
 .action-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
 .action-row button { padding-inline: 5px; font-size: .78rem; }
 .action-row svg { width: 18px; }
@@ -201,6 +206,15 @@ input::placeholder, textarea::placeholder { color: oklch(0.58 0.025 303); }
 .slot-admin-list strong { display: block; margin-top: 5px; }
 .slot-admin-list p { margin: 5px 0; color: var(--muted); font-size: .8rem; }
 .slot-admin-list small { color: var(--muted); font-size: .7rem; }
+.slot-correction { margin-top: 14px; padding: 14px; display: grid; gap: 11px; background: color-mix(in oklch, var(--violet), transparent 92%); border: 1px solid color-mix(in oklch, var(--violet), transparent 55%); border-radius: 15px; }
+.correction-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.correction-heading span { display: inline-flex; align-items: center; gap: 6px; color: var(--score); font-size: .82rem; font-weight: 800; }
+.correction-heading span svg { width: 16px; color: var(--violet); }
+.correction-heading p { margin: 4px 0 0; max-width: 32ch; font-size: .72rem; line-height: 1.5; }
+.slot-correction .icon-button { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 12px; }
+.correction-fields { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 9px; }
+.slot-correction input, .slot-correction select { min-height: 46px; }
+.correction-review { width: 100%; min-height: 46px; }
 .charge-hero { padding: 26px 18px; text-align: center; background: var(--raised); border: 1px solid var(--border); border-radius: 18px; }
 .charge-hero > svg { width: 42px; height: 42px; margin-bottom: 14px; color: var(--violet); }
 .charge-hero p:last-child { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.55; }

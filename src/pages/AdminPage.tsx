@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Check,
+  Coins,
   Copy,
   CreditCard,
   KeyRound,
@@ -20,6 +21,7 @@ import {
 import { repository } from "../data";
 import type { AdminDashboard, Slot, SlotType } from "../types";
 import { createIntentKeyTracker } from "../lib/idempotency";
+import { canReadNfc, readNfcCapability } from "../lib/nfcReader";
 import { canWriteNfc, getNfcWriteAvailability, writeUrlToNfc } from "../lib/nfcWriter";
 
 type Tab = "overview" | "teams" | "scorers" | "slots" | "spend" | "cards";
@@ -168,7 +170,9 @@ function Teams({ data }: { data: AdminDashboard }) {
 }
 
 const freshSlot = (data: AdminDashboard, scorerId = "") => ({
-  id: crypto.randomUUID() as string,
+  // An empty id tells upsert_slot_v2 to create a slot. Supplying a freshly
+  // generated UUID made the database correctly treat it as a missing update.
+  id: "",
   slotNumber: String(Math.max(0, ...data.slots.map((slot) => slot.slotNumber)) + 1),
   labelAr: "",
   scheduledAt: new Date().toISOString().slice(0, 16),
@@ -430,7 +434,15 @@ function SlotList({
 }) {
   const [edit, setEdit] = useState<SlotForm | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [correcting, setCorrecting] = useState<Slot | null>(null);
+  const [correction, setCorrection] = useState({
+    teamId: "",
+    amount: "",
+    reason: "",
+  });
+  const [reviewCorrection, setReviewCorrection] = useState(false);
   const qc = useQueryClient();
+  const intent = useRef(createIntentKeyTracker());
   const deleteM = useMutation({
     mutationFn: () => repository.deleteSlot(deleting!),
     onSuccess: async () => {
@@ -438,6 +450,33 @@ function SlotList({
       await qc.invalidateQueries({ queryKey: ["admin"] });
     },
   });
+  const correctionM = useMutation({
+    mutationFn: () =>
+      repository.adjustWallet(
+        correction.teamId,
+        Number(correction.amount),
+        correction.reason,
+        intent.current.get(
+          `${correcting?.id}|${correction.teamId}|${correction.amount}|${correction.reason}`,
+        ),
+      ),
+    onSuccess: async () => {
+      intent.current.clear();
+      setCorrecting(null);
+      setCorrection({ teamId: "", amount: "", reason: "" });
+      setReviewCorrection(false);
+      await qc.invalidateQueries({ queryKey: ["admin"] });
+    },
+  });
+  const openCorrection = (slot: Slot) => {
+    setCorrecting(slot);
+    setCorrection({
+      teamId: slot.participants[0]?.teamId ?? "",
+      amount: "",
+      reason: "",
+    });
+    setReviewCorrection(false);
+  };
   const list = filter
     ? data.slots.filter((s) => s.scorerId === filter)
     : data.slots;
@@ -458,10 +497,18 @@ function SlotList({
             <small>
               {s.scorerName}، Bonus {s.bonusUsed}/{s.bonusLimit}
             </small>
-            {!s.isSubmitted && <div className="row-actions">
-              <button className="text-button" onClick={() => setEdit(editShape(s))}><Pencil />تعديل</button>
-              <button className="text-button destructive-text" onClick={() => setDeleting(s.id)}><Trash2 />حذف</button>
-            </div>}
+            {!s.isSubmitted ? (
+              <div className="row-actions">
+                <button className="text-button" onClick={() => setEdit(editShape(s))}><Pencil />تعديل</button>
+                <button className="text-button destructive-text" onClick={() => setDeleting(s.id)}><Trash2 />حذف</button>
+              </div>
+            ) : (
+              <div className="row-actions">
+                <button className="text-button" type="button" onClick={() => openCorrection(s)}>
+                  <Coins />تصحيح النقاط
+                </button>
+              </div>
+            )}
             {deleting === s.id && (
               <div className="confirmation-panel danger-confirm">
                 <strong>حذف الـSlot؟</strong>
@@ -469,6 +516,51 @@ function SlotList({
                 <div className="action-row"><button className="danger-button" type="button" disabled={deleteM.isPending} onClick={() => deleteM.mutate()}>تأكيد الحذف</button><button className="secondary-button" type="button" onClick={() => setDeleting(null)}>إلغاء</button></div>
                 {feedback(deleteM)}
               </div>
+            )}
+            {correcting?.id === s.id && (
+              <form
+                className="slot-correction"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  setReviewCorrection(true);
+                }}
+              >
+                <div className="correction-heading">
+                  <div>
+                    <span><Coins /> تصحيح مسجل</span>
+                    <p>التعديل يظهر كحركة منفصلة ويحافظ على النتيجة الأصلية.</p>
+                  </div>
+                  <button type="button" className="icon-button" onClick={() => setCorrecting(null)} aria-label="إلغاء التصحيح"><X /></button>
+                </div>
+                <div className="correction-fields">
+                  <label>
+                    الفريق
+                    <select value={correction.teamId} onChange={(event) => { setCorrection({ ...correction, teamId: event.target.value }); setReviewCorrection(false); }}>
+                      {correcting.participants.map((team) => <option key={team.teamId} value={team.teamId}>{team.teamName}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    النقاط
+                    <input type="number" required value={correction.amount} placeholder="+20 أو -20" onChange={(event) => { setCorrection({ ...correction, amount: event.target.value }); setReviewCorrection(false); }} />
+                  </label>
+                </div>
+                <label>
+                  السبب
+                  <input required maxLength={240} value={correction.reason} placeholder="سبب التعديل" onChange={(event) => { setCorrection({ ...correction, reason: event.target.value }); setReviewCorrection(false); }} />
+                </label>
+                {reviewCorrection && (
+                  <div className="confirmation-panel">
+                    <strong>تأكيد الحركة</strong>
+                    <p>{correcting.participants.find((team) => team.teamId === correction.teamId)?.teamName}: {Number(correction.amount) > 0 ? "+" : ""}{correction.amount} Kaizen</p>
+                    <div className="action-row">
+                      <button type="button" className="primary-button" disabled={correctionM.isPending} onClick={() => correctionM.mutate()}>{correctionM.isPending ? <LoaderCircle className="spin" /> : <Check />}تأكيد</button>
+                      <button type="button" className="secondary-button" onClick={() => setReviewCorrection(false)}>رجوع</button>
+                    </div>
+                  </div>
+                )}
+                {feedback(correctionM)}
+                {!reviewCorrection && <button className="secondary-button correction-review" disabled={!correction.teamId || !correction.reason.trim() || Number(correction.amount) === 0}>مراجعة التصحيح</button>}
+              </form>
             )}
           </article>
         ))}
@@ -793,6 +885,9 @@ function Spend({ data }: { data: AdminDashboard }) {
     note: "",
   });
   const [confirm, setConfirm] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanSuccess, setScanSuccess] = useState<string | null>(null);
   const intent = useRef(createIntentKeyTracker());
   const team = data.teams.find((t) => t.id === f.teamId);
   const current = data.balances[f.teamId] ?? 0;
@@ -827,6 +922,34 @@ function Spend({ data }: { data: AdminDashboard }) {
     },
   });
   const activeM = mode === "spend" ? m : addM;
+  const scanTeamCard = async () => {
+    setScanError(null);
+    setScanSuccess(null);
+    setIsScanning(true);
+    try {
+      const capability = await readNfcCapability();
+      const wallet = await repository.getWallet(capability);
+      const scannedTeam = data.teams.find(
+        (candidate) => candidate.code === wallet.team.code && candidate.nameAr === wallet.team.nameAr,
+      );
+      if (!scannedTeam) {
+        throw new Error("الكارت لفريق خارج الكامب الحالي.");
+      }
+      setConfirm(false);
+      setF((currentForm) => ({ ...currentForm, teamId: scannedTeam.id }));
+      setScanSuccess(`تم اختيار فريق ${scannedTeam.nameAr}.`);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        setScanError("اسمح للمتصفح باستخدام NFC ثم جرّب تاني.");
+      } else if (error instanceof DOMException && error.name === "NotSupportedError") {
+        setScanError("مسح NFC يحتاج Chrome على Android وHTTPS.");
+      } else {
+        setScanError(error instanceof Error ? error.message : "تعذّر قراءة الكارت. جرّب تاني.");
+      }
+    } finally {
+      setIsScanning(false);
+    }
+  };
   return (
     <div className="admin-section">
       <section className="charge-hero">
@@ -846,9 +969,10 @@ function Spend({ data }: { data: AdminDashboard }) {
           setConfirm(true);
         }}
       >
-        <label>
-          الفريق
+        <div className="team-selector">
+          <span className="field-label" id="wallet-team-label">الفريق</span>
           <select
+            aria-labelledby="wallet-team-label"
             value={f.teamId}
             onChange={(e) => {
               setConfirm(false);
@@ -859,9 +983,21 @@ function Spend({ data }: { data: AdminDashboard }) {
               <option key={t.id} value={t.id}>
                 {t.nameAr}، {data.balances[t.id] ?? 0} Kaizen
               </option>
-            ))}
+              ))}
           </select>
-        </label>
+          <button
+            type="button"
+            className="secondary-button nfc-scan-button"
+            disabled={!canReadNfc() || isScanning}
+            onClick={scanTeamCard}
+          >
+            {isScanning ? <LoaderCircle className="spin" /> : <SmartphoneNfc />}
+            {isScanning ? "قرّب الكارت من الموبايل" : "امسح كارت NFC"}
+          </button>
+          {!canReadNfc() && <small className="nfc-scan-hint">المسح متاح من Chrome على Android عبر HTTPS. تقدر تختار الفريق يدويًا.</small>}
+          {scanError && <div className="inline-alert error" role="alert"><AlertTriangle />{scanError}</div>}
+          {scanSuccess && <div className="inline-alert success" role="status"><Check />{scanSuccess}</div>}
+        </div>
         <label>
           القيمة
           <input

@@ -79,23 +79,52 @@ on conflict (event_id, scorer_id) do update set bonus_limit = excluded.bonus_lim
 
 insert into public.match_slots (
   id, event_id, slot_number, label_ar, scheduled_at, scorer_id, team_a_id, team_b_id,
-  winner_score, draw_score, loser_score, bonus_limit
+  slot_type, winner_score, draw_score, loser_score, bonus_limit
 )
-select ('50000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid,
-       '30000000-0000-0000-0000-000000000001', i,
-       'مباراة ' || i,
-       '2026-07-11 17:00:00+03'::timestamptz + ((i - 1) * interval '20 minutes'),
-       ('20000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid,
-       ('40000000-0000-0000-0000-' || lpad((((i - 1) % 8) + 1)::text, 12, '0'))::uuid,
-       ('40000000-0000-0000-0000-' || lpad(((i % 8) + 1)::text, 12, '0'))::uuid,
-       10, 5, 2, 20
-from generate_series(1, 18) i
-on conflict (id) do nothing;
+select ('50000000-0000-0000-0000-' || lpad(slot_number::text, 12, '0'))::uuid,
+       '30000000-0000-0000-0000-000000000001', slot_number,
+       'مباراة ' || slot_number || '، Team ' || team_a || ' ضد Team ' || team_b,
+       '2026-07-11 17:00:00+03'::timestamptz + ((slot_number - 1) * interval '20 minutes'),
+       ('20000000-0000-0000-0000-' || lpad(scorer_number::text, 12, '0'))::uuid,
+       ('40000000-0000-0000-0000-' || lpad(team_a::text, 12, '0'))::uuid,
+       ('40000000-0000-0000-0000-' || lpad(team_b::text, 12, '0'))::uuid,
+       'game'::public.slot_type, 10, 5, 2, 20
+from (
+  values
+    (1, 1, 1, 8), (2, 1, 2, 7), (3, 1, 3, 6), (4, 1, 4, 5),
+    (5, 2, 3, 4), (6, 2, 5, 6), (7, 2, 1, 2), (8, 2, 7, 8),
+    (9, 3, 6, 7), (10, 3, 1, 4), (11, 3, 5, 8), (12, 3, 2, 3),
+    (13, 4, 2, 5), (14, 4, 3, 8), (15, 4, 4, 7), (16, 4, 1, 6),
+    (17, 5, 1, 2), (18, 5, 3, 4), (19, 5, 5, 6), (20, 5, 7, 8),
+    (21, 6, 5, 7), (22, 6, 6, 8), (23, 6, 2, 4), (24, 6, 1, 3),
+    (25, 7, 4, 8), (26, 7, 1, 5), (27, 7, 3, 7), (28, 7, 2, 6),
+    (29, 8, 3, 6), (30, 8, 2, 7), (31, 8, 1, 8), (32, 8, 4, 5)
+) as schedule(slot_number, scorer_number, team_a, team_b)
+on conflict (id) do update set
+  slot_number = excluded.slot_number,
+  label_ar = excluded.label_ar,
+  scheduled_at = excluded.scheduled_at,
+  scorer_id = excluded.scorer_id,
+  team_a_id = excluded.team_a_id,
+  team_b_id = excluded.team_b_id,
+  slot_type = excluded.slot_type,
+  winner_score = excluded.winner_score,
+  draw_score = excluded.draw_score,
+  loser_score = excluded.loser_score,
+  bonus_limit = excluded.bonus_limit;
+
+delete from public.slot_participants
+where slot_id in (
+  select ('50000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid
+  from generate_series(1, 32) i
+);
 
 insert into public.slot_participants(slot_id,team_id)
 select id,team_a_id from public.match_slots
+where event_id = '30000000-0000-0000-0000-000000000001'
 union
 select id,team_b_id from public.match_slots
+where event_id = '30000000-0000-0000-0000-000000000001'
 on conflict do nothing;
 
 -- Known local-only NFC values make manual client testing easy.

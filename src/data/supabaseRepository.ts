@@ -26,6 +26,19 @@ const fail = (error: PostgrestError | Error | null) => {
   if (!error) return;
   const code =
     "code" in error && typeof error.code === "string" ? error.code : "";
+  const databaseMessage =
+    "message" in error && typeof error.message === "string"
+      ? error.message.toLowerCase()
+      : "";
+  // P0002 is used for more than one validation case in the database. Showing
+  // the exact actionable reason prevents a completed slot form from looking
+  // like it is missing a random field.
+  if (code === "P0002" && databaseMessage.includes("active scorer")) {
+    throw new Error("اختار Scorer حسابه مفعّل، أو فعّل الحساب الأول.");
+  }
+  if (code === "P0002" && databaseMessage.includes("slot not found")) {
+    throw new Error("الـSlot دي اتغيرت أو اتحذفت. حدّث الصفحة وحاول تاني.");
+  }
   throw new Error(
     localizedDatabaseErrors[code] ??
       "حصلت مشكلة في الاتصال. راجع البيانات وحاول تاني.",
