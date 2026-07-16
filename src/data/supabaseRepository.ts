@@ -72,6 +72,11 @@ export const supabaseRepository: CampRepository = {
       },
     };
   },
+  async getScorerLoginOptions() {
+    const { data, error } = await client().rpc("scorer_login_options");
+    fail(error);
+    return ((data ?? []) as Row[]).map((row) => text(row.username));
+  },
   async signIn(identity, password) {
     const normalizedIdentity = identity.trim().toLowerCase();
     const email = normalizedIdentity.includes("@")

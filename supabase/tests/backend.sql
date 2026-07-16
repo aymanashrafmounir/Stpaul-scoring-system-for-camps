@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(31);
 
 select is((select count(*) from public.match_slots where slot_type='game'),32::bigint,'scheduled slots are games');
 select is((select count(*) from public.slot_participants),64::bigint,'each scheduled game has two participants');
@@ -9,6 +9,7 @@ select is((select bonus_limit from public.match_slots limit 1),20,'legacy bonus 
 select ok(not has_function_privilege('anon','public.upsert_slot_v2(jsonb)','EXECUTE'),'anon cannot manage slots');
 select ok(not has_function_privilege('anon','public.redeem_by_team(uuid,integer,text,uuid)','EXECUTE'),'anon cannot spend');
 select ok(has_function_privilege('authenticated','public.submit_tournament_result(uuid,uuid,uuid,uuid,uuid)','EXECUTE'),'scorer RPC exposed to authenticated');
+select ok(has_function_privilege('anon','public.scorer_login_options()','EXECUTE'),'scorer login options are available before authentication');
 
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',true);

@@ -124,6 +124,7 @@ export interface AuthState {
 export interface CampRepository {
   mode: "supabase";
   getAuth(): Promise<AuthState | null>;
+  getScorerLoginOptions(): Promise<string[]>;
   signIn(identity: string, password: string): Promise<void>;
   signOut(): Promise<void>;
   getAdminDashboard(): Promise<AdminDashboard>;
