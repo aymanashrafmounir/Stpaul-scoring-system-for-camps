@@ -289,14 +289,20 @@ export const supabaseRepository: CampRepository = {
     } satisfies AdminDashboard;
   },
   async saveTeam(input) {
-    const payload = {
+    if (input.id) {
+      const { error } = await client()
+        .from("teams")
+        .update({ name_ar: input.nameAr.trim() })
+        .eq("id", input.id)
+        .eq("event_id", input.eventId);
+      fail(error);
+      return;
+    }
+    const { error } = await client().from("teams").insert({
       event_id: input.eventId,
-      // The database still needs a technical unique code; it is not an admin input.
-      code: input.id ? undefined : `TEAM-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      code: `TEAM-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       name_ar: input.nameAr.trim(),
-      ...(input.id ? { id: input.id } : {}),
-    };
-    const { error } = await client().from("teams").upsert(payload);
+    });
     fail(error);
   },
   async deleteTeam(teamId) {
