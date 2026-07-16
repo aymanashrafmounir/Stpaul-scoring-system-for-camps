@@ -3,7 +3,7 @@
 const worker = self as unknown as ServiceWorkerGlobalScope
 const cacheName = 'saint-paul-shell-v2'
 const precacheManifest = (self as unknown as ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision?: string }> }).__WB_MANIFEST
-const assets = precacheManifest.map((entry) => entry.url)
+const assets = [...new Set(precacheManifest.map((entry) => entry.url))]
 
 worker.addEventListener('install', (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(assets)).then(() => worker.skipWaiting()))

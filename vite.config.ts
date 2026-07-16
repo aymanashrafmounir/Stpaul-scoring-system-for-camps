@@ -12,7 +12,6 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.ts',
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
       manifest: {
         name: 'سانت بول | تسجيل الكامب',
         short_name: 'سانت بول',
@@ -27,7 +26,8 @@ export default defineConfig({
         icons: [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }]
       },
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,svg,jpeg,png,woff2,webmanifest}']
+        globPatterns: ['**/*.{js,css,html,svg,jpeg,png,woff2}'],
+        globIgnores: ['favicon.svg']
       }
     })
   ],
