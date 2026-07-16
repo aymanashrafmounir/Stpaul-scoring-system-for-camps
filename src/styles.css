@@ -208,6 +208,11 @@ input::placeholder, textarea::placeholder { color: oklch(0.58 0.025 303); }
 .slot-admin-list strong { display: block; margin-top: 5px; }
 .slot-admin-list p { margin: 5px 0; color: var(--muted); font-size: .8rem; }
 .slot-admin-list small { color: var(--muted); font-size: .7rem; }
+.slot-awards { margin-top: 13px; padding: 11px 13px; display: grid; gap: 7px; background: var(--surface); border: 1px solid var(--border); border-radius: 13px; }
+.slot-awards > span { color: var(--muted); font-size: .68rem; font-weight: 700; }
+.slot-awards > div { min-height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.slot-awards strong { margin: 0; color: oklch(0.92 0.015 300); font-size: .78rem; }
+.slot-awards b { direction: ltr; color: var(--violet); font-size: .76rem; white-space: nowrap; }
 .correction-page { gap: var(--space-5); }
 .correction-slot { padding: 20px; display: grid; gap: var(--space-4); background: var(--raised); border: 1px solid color-mix(in oklch, var(--violet), transparent 35%); border-radius: 18px; }
 .correction-slot h2 { margin: 0; }

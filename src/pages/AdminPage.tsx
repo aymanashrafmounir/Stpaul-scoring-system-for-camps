@@ -432,6 +432,31 @@ const editShape = (s: Slot): SlotForm => ({
   othersScore: String(s.othersScore),
   bonusLimit: String(s.bonusLimit),
 });
+
+function gameKaizen(slot: Slot, teamId: string) {
+  if (slot.outcome === "draw") return slot.drawScore;
+  const winnerId = slot.outcome === "team_a_win" ? slot.teamAId : slot.teamBId;
+  return teamId === winnerId ? slot.winnerScore : slot.loserScore;
+}
+
+function tournamentKaizen(slot: Slot, teamId: string) {
+  if (teamId === slot.tournamentResult?.firstTeamId) return slot.firstScore;
+  if (teamId === slot.tournamentResult?.secondTeamId) return slot.secondScore;
+  if (teamId === slot.tournamentResult?.thirdTeamId) return slot.thirdScore;
+  return slot.othersScore;
+}
+
+function awardedKaizen(slot: Slot) {
+  if (!slot.isSubmitted || (slot.slotType === "game" && !slot.outcome)) return [];
+  if (slot.slotType === "tournament" && !slot.tournamentResult) return [];
+  return slot.participants.map((team) => ({
+    ...team,
+    amount: slot.slotType === "game"
+      ? gameKaizen(slot, team.teamId)
+      : tournamentKaizen(slot, team.teamId),
+  }));
+}
+
 function SlotList({
   data,
   filter,
@@ -472,6 +497,17 @@ function SlotList({
             <small>
               {s.scorerName}، Bonus {s.bonusUsed}/{s.bonusLimit}
             </small>
+            {s.isSubmitted && (
+              <div className="slot-awards" aria-label="توزيع Kaizen المسجل">
+                <span>النقاط المسجلة</span>
+                {awardedKaizen(s).map((award) => (
+                  <div key={award.teamId}>
+                    <strong>{award.teamName}</strong>
+                    <b>+{award.amount} Kaizen</b>
+                  </div>
+                ))}
+              </div>
+            )}
             {!s.isSubmitted ? (
               <div className="row-actions">
                 <button className="text-button" onClick={() => setEdit(editShape(s))}><Pencil />تعديل</button>
