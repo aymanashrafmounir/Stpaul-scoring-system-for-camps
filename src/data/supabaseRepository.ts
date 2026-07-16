@@ -290,11 +290,10 @@ export const supabaseRepository: CampRepository = {
   },
   async saveTeam(input) {
     if (input.id) {
-      const { error } = await client()
-        .from("teams")
-        .update({ name_ar: input.nameAr.trim() })
-        .eq("id", input.id)
-        .eq("event_id", input.eventId);
+      const { error } = await client().rpc("rename_team", {
+        p_team_id: input.id,
+        p_name_ar: input.nameAr.trim(),
+      });
       fail(error);
       return;
     }

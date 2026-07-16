@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(30);
 
 select is((select count(*) from public.match_slots where slot_type='game'),32::bigint,'scheduled slots are games');
 select is((select count(*) from public.slot_participants),64::bigint,'each scheduled game has two participants');
@@ -30,6 +30,7 @@ select is((select amount from public.wallet_ledger where tournament_result_id is
 select is((select amount from public.wallet_ledger where tournament_result_id is not null and team_id='40000000-0000-0000-0000-000000000004'),30,'other gets default');
 
 select set_config('request.jwt.claims','{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+select lives_ok($$select public.rename_team('40000000-0000-0000-0000-000000000008','الشعلة الجديدة')$$,'admin renames team');
 select lives_ok($$select public.correct_slot_result(
   (select id from public.match_slots where slot_number=99),
   jsonb_build_object(
