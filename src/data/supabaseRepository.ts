@@ -109,7 +109,9 @@ export const supabaseRepository: CampRepository = {
         .order("display_name"),
       client().from("match_slots").select("*").order("scheduled_at"),
       client().from("match_results").select("slot_id,outcome"),
-      client().from("tournament_results").select("slot_id"),
+      client()
+        .from("tournament_results")
+        .select("slot_id,first_team_id,second_team_id,third_team_id"),
       client()
         .from("wallet_ledger")
         .select("*")
@@ -118,7 +120,9 @@ export const supabaseRepository: CampRepository = {
         .from("nfc_tokens")
         .select("*")
         .order("issued_at", { ascending: false }),
-      client().from("bonus_awards").select("slot_id,amount"),
+      client()
+        .from("bonus_awards")
+        .select("id,slot_id,team_id,amount,reason,awarded_at,undone_at"),
       client().from("slot_participants").select("*"),
     ]);
     [
@@ -161,7 +165,16 @@ export const supabaseRepository: CampRepository = {
     const results = new Map(
       resultRows.map((row) => [text(row.slot_id), row.outcome as MatchOutcome]),
     );
-    const submittedTournaments = new Set(tournamentResultRows.map((row) => text(row.slot_id)));
+    const tournamentResults = new Map(
+      tournamentResultRows.map((row) => [
+        text(row.slot_id),
+        {
+          firstTeamId: text(row.first_team_id),
+          secondTeamId: text(row.second_team_id),
+          thirdTeamId: text(row.third_team_id),
+        },
+      ]),
+    );
     const scorers = profileRows.map((row) => ({
       userId: text(row.user_id),
       displayName: text(row.display_name),
@@ -170,12 +183,14 @@ export const supabaseRepository: CampRepository = {
       isActive: Boolean(row.is_active),
     }));
     const usedBySlot = new Map<string, number>();
-    bonusRows.forEach((row) =>
-      usedBySlot.set(
-        text(row.slot_id),
-        (usedBySlot.get(text(row.slot_id)) ?? 0) + number(row.amount),
-      ),
-    );
+    bonusRows
+      .filter((row) => !row.undone_at)
+      .forEach((row) =>
+        usedBySlot.set(
+          text(row.slot_id),
+          (usedBySlot.get(text(row.slot_id)) ?? 0) + number(row.amount),
+        ),
+      );
     const participantRows = (participantRes.data ?? []) as Row[];
     const slots = slotRows.map((row) => {
       const participantIds = participantRows
@@ -211,9 +226,22 @@ export const supabaseRepository: CampRepository = {
         bonusLimit: number(row.bonus_limit ?? 10),
         bonusUsed: usedBySlot.get(text(row.id)) ?? 0,
         outcome: results.get(text(row.id)) ?? null,
-        isSubmitted: results.has(text(row.id)) || submittedTournaments.has(text(row.id)),
+        tournamentResult: tournamentResults.get(text(row.id)) ?? null,
+        isSubmitted:
+          results.has(text(row.id)) || tournamentResults.has(text(row.id)),
       };
     });
+    const bonuses = bonusRows
+      .filter((row) => !row.undone_at)
+      .map((row) => ({
+        id: text(row.id),
+        slotId: text(row.slot_id),
+        teamId: text(row.team_id),
+        teamName: names.get(text(row.team_id)),
+        amount: number(row.amount),
+        reason: text(row.reason),
+        awardedAt: text(row.awarded_at),
+      }));
     const ledger: LedgerEntry[] = ledgerRows.map((row) => ({
       id: text(row.id),
       teamId: text(row.team_id),
@@ -245,6 +273,7 @@ export const supabaseRepository: CampRepository = {
       teams,
       scorers,
       slots,
+      bonuses,
       ledger,
       nfcTokens: ((tokensRes.data ?? []) as Row[])
         .filter((row) => activeTeamIds.has(text(row.team_id)))
@@ -383,6 +412,31 @@ export const supabaseRepository: CampRepository = {
     const { error } = await client().rpc("reverse_wallet_entry", {
       p_entry_id: entryId,
       p_reason: reason.trim(),
+    });
+    fail(error);
+  },
+  async correctSlotResult(input) {
+    const correctedResult =
+      "outcome" in input.result
+        ? { outcome: input.result.outcome }
+        : {
+            first_team_id: input.result.firstTeamId,
+            second_team_id: input.result.secondTeamId,
+            third_team_id: input.result.thirdTeamId,
+          };
+    const { error } = await client().rpc("correct_slot_result", {
+      p_slot_id: input.slotId,
+      p_result: correctedResult,
+      p_reason: input.reason.trim(),
+      p_idempotency_key: input.key,
+    });
+    fail(error);
+  },
+  async undoBonus(input) {
+    const { error } = await client().rpc("undo_slot_bonus", {
+      p_bonus_id: input.bonusId,
+      p_reason: input.reason.trim(),
+      p_idempotency_key: input.key,
     });
     fail(error);
   },

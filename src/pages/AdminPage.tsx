@@ -1,11 +1,14 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
+  ArrowRight,
   Check,
   Coins,
   Copy,
   CreditCard,
+  Handshake,
   KeyRound,
   LayoutDashboard,
   LoaderCircle,
@@ -19,19 +22,25 @@ import {
   X,
 } from "lucide-react";
 import { repository } from "../data";
-import type { AdminDashboard, Slot, SlotType } from "../types";
+import type {
+  AdminDashboard,
+  BonusAward,
+  MatchOutcome,
+  Slot,
+  SlotType,
+} from "../types";
 import { createIntentKeyTracker } from "../lib/idempotency";
 import { canReadNfc, readNfcCapability } from "../lib/nfcReader";
 import { canWriteNfc, getNfcWriteAvailability, writeUrlToNfc } from "../lib/nfcWriter";
 
 type Tab = "overview" | "teams" | "scorers" | "slots" | "spend" | "cards";
-const tabs: Array<{ id: Tab; label: string }> = [
-  { id: "overview", label: "الملخص" },
-  { id: "teams", label: "الفرق" },
-  { id: "scorers", label: "Scorers" },
-  { id: "slots", label: "Slots" },
-  { id: "spend", label: "إدارة Kaizen" },
-  { id: "cards", label: "الكروت" },
+const tabs: Array<{ id: Tab; label: string; path: string }> = [
+  { id: "overview", label: "الملخص", path: "/admin" },
+  { id: "teams", label: "الفرق", path: "/admin/teams" },
+  { id: "scorers", label: "Scorers", path: "/admin/scorers" },
+  { id: "slots", label: "Slots", path: "/admin/slots" },
+  { id: "spend", label: "إدارة Kaizen", path: "/admin/spend" },
+  { id: "cards", label: "الكروت", path: "/admin/cards" },
 ];
 const feedback = (m: { error: Error | null; isSuccess: boolean }) => (
   <>
@@ -434,15 +443,8 @@ function SlotList({
 }) {
   const [edit, setEdit] = useState<SlotForm | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [correcting, setCorrecting] = useState<Slot | null>(null);
-  const [correction, setCorrection] = useState({
-    teamId: "",
-    amount: "",
-    reason: "",
-  });
-  const [reviewCorrection, setReviewCorrection] = useState(false);
+  const navigate = useNavigate();
   const qc = useQueryClient();
-  const intent = useRef(createIntentKeyTracker());
   const deleteM = useMutation({
     mutationFn: () => repository.deleteSlot(deleting!),
     onSuccess: async () => {
@@ -450,33 +452,6 @@ function SlotList({
       await qc.invalidateQueries({ queryKey: ["admin"] });
     },
   });
-  const correctionM = useMutation({
-    mutationFn: () =>
-      repository.adjustWallet(
-        correction.teamId,
-        Number(correction.amount),
-        correction.reason,
-        intent.current.get(
-          `${correcting?.id}|${correction.teamId}|${correction.amount}|${correction.reason}`,
-        ),
-      ),
-    onSuccess: async () => {
-      intent.current.clear();
-      setCorrecting(null);
-      setCorrection({ teamId: "", amount: "", reason: "" });
-      setReviewCorrection(false);
-      await qc.invalidateQueries({ queryKey: ["admin"] });
-    },
-  });
-  const openCorrection = (slot: Slot) => {
-    setCorrecting(slot);
-    setCorrection({
-      teamId: slot.participants[0]?.teamId ?? "",
-      amount: "",
-      reason: "",
-    });
-    setReviewCorrection(false);
-  };
   const list = filter
     ? data.slots.filter((s) => s.scorerId === filter)
     : data.slots;
@@ -504,7 +479,7 @@ function SlotList({
               </div>
             ) : (
               <div className="row-actions">
-                <button className="text-button" type="button" onClick={() => openCorrection(s)}>
+                <button className="text-button" type="button" onClick={() => navigate(`/admin/slots/${s.id}/correct`)}>
                   <Coins />تصحيح النقاط
                 </button>
               </div>
@@ -516,51 +491,6 @@ function SlotList({
                 <div className="action-row"><button className="danger-button" type="button" disabled={deleteM.isPending} onClick={() => deleteM.mutate()}>تأكيد الحذف</button><button className="secondary-button" type="button" onClick={() => setDeleting(null)}>إلغاء</button></div>
                 {feedback(deleteM)}
               </div>
-            )}
-            {correcting?.id === s.id && (
-              <form
-                className="slot-correction"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setReviewCorrection(true);
-                }}
-              >
-                <div className="correction-heading">
-                  <div>
-                    <span><Coins /> تصحيح مسجل</span>
-                    <p>التعديل يظهر كحركة منفصلة ويحافظ على النتيجة الأصلية.</p>
-                  </div>
-                  <button type="button" className="icon-button" onClick={() => setCorrecting(null)} aria-label="إلغاء التصحيح"><X /></button>
-                </div>
-                <div className="correction-fields">
-                  <label>
-                    الفريق
-                    <select value={correction.teamId} onChange={(event) => { setCorrection({ ...correction, teamId: event.target.value }); setReviewCorrection(false); }}>
-                      {correcting.participants.map((team) => <option key={team.teamId} value={team.teamId}>{team.teamName}</option>)}
-                    </select>
-                  </label>
-                  <label>
-                    النقاط
-                    <input type="number" required value={correction.amount} placeholder="+20 أو -20" onChange={(event) => { setCorrection({ ...correction, amount: event.target.value }); setReviewCorrection(false); }} />
-                  </label>
-                </div>
-                <label>
-                  السبب
-                  <input required maxLength={240} value={correction.reason} placeholder="سبب التعديل" onChange={(event) => { setCorrection({ ...correction, reason: event.target.value }); setReviewCorrection(false); }} />
-                </label>
-                {reviewCorrection && (
-                  <div className="confirmation-panel">
-                    <strong>تأكيد الحركة</strong>
-                    <p>{correcting.participants.find((team) => team.teamId === correction.teamId)?.teamName}: {Number(correction.amount) > 0 ? "+" : ""}{correction.amount} Kaizen</p>
-                    <div className="action-row">
-                      <button type="button" className="primary-button" disabled={correctionM.isPending} onClick={() => correctionM.mutate()}>{correctionM.isPending ? <LoaderCircle className="spin" /> : <Check />}تأكيد</button>
-                      <button type="button" className="secondary-button" onClick={() => setReviewCorrection(false)}>رجوع</button>
-                    </div>
-                  </div>
-                )}
-                {feedback(correctionM)}
-                {!reviewCorrection && <button className="secondary-button correction-review" disabled={!correction.teamId || !correction.reason.trim() || Number(correction.amount) === 0}>مراجعة التصحيح</button>}
-              </form>
             )}
           </article>
         ))}
@@ -582,9 +512,15 @@ function SlotList({
   );
 }
 
-function Scorers({ data }: { data: AdminDashboard }) {
+function Scorers({
+  data,
+  selectedId,
+}: {
+  data: AdminDashboard;
+  selectedId?: string;
+}) {
   const qc = useQueryClient();
-  const [selected, setSelected] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [addSlot, setAddSlot] = useState(false);
   const [savedCredential, setSavedCredential] = useState<{ username: string; password: string } | null>(null);
   const [form, setForm] = useState<{
@@ -605,11 +541,12 @@ function Scorers({ data }: { data: AdminDashboard }) {
       await qc.invalidateQueries({ queryKey: ["admin"] });
     },
   });
-  const current = data.scorers.find((s) => s.userId === selected);
+  const current = data.scorers.find((s) => s.userId === selectedId);
   if (current)
     return (
       <div className="admin-section">
-        <button className="text-button" onClick={() => setSelected(null)}>
+        <button className="back-button" onClick={() => navigate("/admin/scorers")}>
+          <ArrowRight />
           رجوع لكل الـScorers
         </button>
         <section>
@@ -683,7 +620,7 @@ function Scorers({ data }: { data: AdminDashboard }) {
             <button
               className="scorer-row"
               key={s.userId}
-              onClick={() => setSelected(s.userId)}
+              onClick={() => navigate(`/admin/scorers/${s.userId}`)}
             >
               <div>
                 <strong>{s.displayName}</strong>
@@ -871,6 +808,272 @@ function Slots({ data }: { data: AdminDashboard }) {
             <button className="secondary-button compact" type="button" onClick={() => setPage(currentPage + 1)} disabled={currentPage === totalPages}>التالي</button>
           </nav>
         )}
+      </section>
+    </div>
+  );
+}
+
+const gameOutcomeLabels: Record<MatchOutcome, string> = {
+  team_a_win: "فوز الفريق الأول",
+  draw: "تعادل",
+  team_b_win: "فوز الفريق التاني",
+};
+
+function BonusUndo({ bonus }: { bonus: BonusAward }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const intent = useRef(createIntentKeyTracker());
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () =>
+      repository.undoBonus({
+        bonusId: bonus.id,
+        reason,
+        key: intent.current.get(`${bonus.id}|${reason}`),
+      }),
+    onSuccess: async () => {
+      intent.current.clear();
+      setOpen(false);
+      setReason("");
+      await qc.invalidateQueries({ queryKey: ["admin"] });
+    },
+  });
+  if (!open) {
+    return (
+      <button className="danger-button compact" type="button" onClick={() => setOpen(true)}>
+        <Trash2 />
+        Undo
+      </button>
+    );
+  }
+  return (
+    <div className="bonus-undo-form">
+      <label>
+        سبب إلغاء الـBonus
+        <input
+          required
+          maxLength={240}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </label>
+      {feedback(mutation)}
+      <div className="action-row">
+        <button
+          className="danger-button"
+          type="button"
+          disabled={!reason.trim() || mutation.isPending}
+          onClick={() => mutation.mutate()}
+        >
+          {mutation.isPending ? <LoaderCircle className="spin" /> : <Trash2 />}
+          تأكيد الإلغاء
+        </button>
+        <button className="secondary-button" type="button" onClick={() => setOpen(false)}>
+          رجوع
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GameCorrectionPicker({
+  slot,
+  outcome,
+  onChange,
+}: {
+  slot: Slot;
+  outcome: MatchOutcome | null;
+  onChange: (outcome: MatchOutcome) => void;
+}) {
+  return (
+    <div className="outcome-grid">
+      <button type="button" className={outcome === "team_a_win" ? "selected win" : ""} onClick={() => onChange("team_a_win")}>
+        <Trophy />
+        <span>{slot.teamAName}</span>
+        <small>+{slot.winnerScore}</small>
+      </button>
+      <button type="button" className={outcome === "draw" ? "selected draw" : ""} onClick={() => onChange("draw")}>
+        <Handshake />
+        <span>تعادل</span>
+        <small>+{slot.drawScore} لكل فريق</small>
+      </button>
+      <button type="button" className={outcome === "team_b_win" ? "selected win" : ""} onClick={() => onChange("team_b_win")}>
+        <Trophy />
+        <span>{slot.teamBName}</span>
+        <small>+{slot.winnerScore}</small>
+      </button>
+    </div>
+  );
+}
+
+function TournamentCorrectionPicker({
+  slot,
+  rank,
+  onChange,
+}: {
+  slot: Slot;
+  rank: { firstTeamId: string; secondTeamId: string; thirdTeamId: string };
+  onChange: (rank: { firstTeamId: string; secondTeamId: string; thirdTeamId: string }) => void;
+}) {
+  const selector = (
+    label: string,
+    key: keyof typeof rank,
+    score: number,
+  ) => (
+    <label>
+      {label}، +{score} Kaizen
+      <select value={rank[key]} onChange={(event) => onChange({ ...rank, [key]: event.target.value })}>
+        {slot.participants.map((participant) => (
+          <option key={participant.teamId} value={participant.teamId}>{participant.teamName}</option>
+        ))}
+      </select>
+    </label>
+  );
+  return (
+    <div className="tournament-result">
+      {selector("المركز الأول", "firstTeamId", slot.firstScore)}
+      {selector("المركز التاني", "secondTeamId", slot.secondScore)}
+      {selector("المركز التالت", "thirdTeamId", slot.thirdScore)}
+    </div>
+  );
+}
+
+function ScoreCorrection({
+  data,
+  slot,
+}: {
+  data: AdminDashboard;
+  slot: Slot;
+}) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const intent = useRef(createIntentKeyTracker());
+  const currentRank = slot.tournamentResult ?? {
+    firstTeamId: slot.participants[0]?.teamId ?? "",
+    secondTeamId: slot.participants[1]?.teamId ?? "",
+    thirdTeamId: slot.participants[2]?.teamId ?? "",
+  };
+  const [outcome, setOutcome] = useState<MatchOutcome | null>(slot.outcome ?? null);
+  const [rank, setRank] = useState(currentRank);
+  const [reason, setReason] = useState("");
+  const [review, setReview] = useState(false);
+  const bonuses = data.bonuses.filter((bonus) => bonus.slotId === slot.id);
+  const uniqueRank = new Set(Object.values(rank)).size === 3;
+  const resultChanged = slot.slotType === "game"
+    ? outcome !== slot.outcome
+    : Object.keys(rank).some((key) =>
+        rank[key as keyof typeof rank] !== currentRank[key as keyof typeof currentRank],
+      );
+  const mutation = useMutation({
+    mutationFn: () =>
+      repository.correctSlotResult({
+        slotId: slot.id,
+        result: slot.slotType === "game"
+          ? { outcome: outcome! }
+          : rank,
+        reason,
+        key: intent.current.get(`${slot.id}|${outcome}|${Object.values(rank).join("|")}|${reason}`),
+      }),
+    onSuccess: async () => {
+      intent.current.clear();
+      await qc.invalidateQueries({ queryKey: ["admin"] });
+      navigate("/admin/slots");
+    },
+  });
+  const canReview =
+    resultChanged &&
+    reason.trim().length > 0 &&
+    (slot.slotType === "game" ? Boolean(outcome) : uniqueRank);
+  return (
+    <div className="admin-section correction-page">
+      <button className="back-button" type="button" onClick={() => navigate("/admin/slots")}>
+        <ArrowRight />
+        رجوع
+      </button>
+      <section className="correction-slot">
+        <div className="slot-meta">
+          <span>{slot.slotType === "game" ? "Game" : "Tournament"}</span>
+          <span>{slot.scorerName}</span>
+        </div>
+        <h2>{slot.labelAr}</h2>
+        {slot.slotType === "game" ? (
+          <div className="versus">
+            <strong>{slot.teamAName}</strong>
+            <b>ضد</b>
+            <strong>{slot.teamBName}</strong>
+          </div>
+        ) : (
+          <p className="participant-line">{slot.participants.map((participant) => participant.teamName).join("، ")}</p>
+        )}
+        <div className="current-result">
+          <Check />
+          <div>
+            <small>النتيجة المسجلة حاليًا</small>
+            <strong>
+              {slot.slotType === "game" && slot.outcome
+                ? gameOutcomeLabels[slot.outcome]
+                : "ترتيب الـTournament المسجل"}
+            </strong>
+          </div>
+        </div>
+        <div className="result-form">
+          <p className="form-prompt">اختار النتيجة الصحيحة</p>
+          {slot.slotType === "game" ? (
+            <GameCorrectionPicker slot={slot} outcome={outcome} onChange={(nextOutcome) => { setOutcome(nextOutcome); setReview(false); }} />
+          ) : (
+            <TournamentCorrectionPicker slot={slot} rank={rank} onChange={(nextRank) => { setRank(nextRank); setReview(false); }} />
+          )}
+          {!uniqueRank && slot.slotType === "tournament" && (
+            <div className="inline-alert error"><AlertTriangle />اختار 3 فرق مختلفين.</div>
+          )}
+          <label>
+            سبب التصحيح
+            <textarea
+              required
+              maxLength={240}
+              value={reason}
+              placeholder="مثال: النتيجة اتسجلت للفريق الغلط"
+              onChange={(event) => { setReason(event.target.value); setReview(false); }}
+            />
+          </label>
+          {review ? (
+            <div className="confirmation-panel">
+              <strong>راجع التصحيح قبل الحفظ</strong>
+              <p>رصيد كل فريق هيتعدل بالفرق فقط، والنتيجة القديمة هتفضل موجودة في سجل المراجعة.</p>
+              <div className="action-row">
+                <button className="primary-button" type="button" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+                  {mutation.isPending ? <LoaderCircle className="spin" /> : <Check />}
+                  تأكيد التصحيح
+                </button>
+                <button className="secondary-button" type="button" onClick={() => setReview(false)}>رجوع</button>
+              </div>
+            </div>
+          ) : (
+            <button className="primary-button wide" type="button" disabled={!canReview} onClick={() => setReview(true)}>
+              مراجعة التصحيح
+            </button>
+          )}
+          {feedback(mutation)}
+        </div>
+      </section>
+      <section className="slot-bonuses">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Admin only</p>
+            <h2>Bonus الـSlot</h2>
+          </div>
+          <Coins />
+        </div>
+        {bonuses.map((bonus) => (
+          <article key={bonus.id}>
+            <div>
+              <strong>{bonus.teamName}، +{bonus.amount} Kaizen</strong>
+              <p>{bonus.reason}</p>
+            </div>
+            <BonusUndo bonus={bonus} />
+          </article>
+        ))}
+        {!bonuses.length && <p className="muted">مفيش Bonus متاح للإلغاء في الـSlot دي.</p>}
       </section>
     </div>
   );
@@ -1277,11 +1480,43 @@ function Overview({ data }: { data: AdminDashboard }) {
   );
 }
 export function AdminPage() {
-  const [tab, setTab] = useState<Tab>("overview");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const pathParts = location.pathname
+    .replace(/^\/admin\/?/, "")
+    .split("/")
+    .filter(Boolean);
+  const tab = tabs.some((candidate) => candidate.id === pathParts[0])
+    ? pathParts[0] as Tab
+    : "overview";
+  const scorerId = tab === "scorers" ? pathParts[1] : undefined;
+  const correctionSlotId =
+    tab === "slots" && pathParts[2] === "correct" ? pathParts[1] : undefined;
   const q = useQuery({
     queryKey: ["admin"],
     queryFn: () => repository.getAdminDashboard(),
   });
+  const correctionSlot = q.data?.slots.find((slot) => slot.id === correctionSlotId);
+  if (q.data && correctionSlotId) {
+    return (
+      <main className="page admin-page">
+        <header className="page-heading">
+          <p className="eyebrow">صلاحية المسؤول</p>
+          <h1>تصحيح النتيجة</h1>
+        </header>
+        {correctionSlot?.isSubmitted ? (
+          <ScoreCorrection data={q.data} slot={correctionSlot} />
+        ) : (
+          <section className="empty-state">
+            <AlertTriangle />
+            <h2>{correctionSlot ? "الـSlot لسه متسجلتش" : "الـSlot مش موجودة"}</h2>
+            <p>{correctionSlot ? "التصحيح بيتاح بعد تسجيل النتيجة الأصلية." : "حدّث قائمة الـSlots وحاول تاني."}</p>
+            <button className="secondary-button" onClick={() => navigate("/admin/slots")}>رجوع لكل الـSlots</button>
+          </section>
+        )}
+      </main>
+    );
+  }
   return (
     <main className="page admin-page">
       <header className="page-heading">
@@ -1293,7 +1528,7 @@ export function AdminPage() {
           <button
             key={t.id}
             className={tab === t.id ? "active" : ""}
-            onClick={() => setTab(t.id)}
+            onClick={() => navigate(t.path)}
           >
             {t.label}
           </button>
@@ -1326,7 +1561,7 @@ export function AdminPage() {
         ) : tab === "teams" ? (
           <Teams data={q.data} />
         ) : tab === "scorers" ? (
-          <Scorers data={q.data} />
+          <Scorers data={q.data} selectedId={scorerId} />
         ) : tab === "slots" ? (
           <Slots data={q.data} />
         ) : tab === "spend" ? (

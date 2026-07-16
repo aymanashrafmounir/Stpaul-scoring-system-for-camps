@@ -41,7 +41,7 @@ function Protected({ role, children }: { role: Role; children: ReactNode }) {
 
 export function App() {
   return <Suspense fallback={<StatusScreen title="بنجهز الصفحة" icon={<LoaderCircle className="spin status-icon" />} />}><Routes>
-    <Route path="/admin" element={<Protected role="admin"><AdminPage /></Protected>} />
+    <Route path="/admin/*" element={<Protected role="admin"><AdminPage /></Protected>} />
     <Route path="/scorer" element={<Protected role="scorer"><ScorerPage /></Protected>} />
     <Route path="/nfc" element={<NfcPage />} />
     <Route path="/nfc/:token" element={<NfcPage />} />

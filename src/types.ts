@@ -56,16 +56,26 @@ export interface Slot {
   bonusLimit: number;
   bonusUsed: number;
   outcome?: MatchOutcome | null;
-  isSubmitted?: boolean;
-}
-
-export interface Assignment extends Slot {
-  bonusRemaining: number;
   tournamentResult?: {
     firstTeamId: string;
     secondTeamId: string;
     thirdTeamId: string;
   } | null;
+  isSubmitted?: boolean;
+}
+
+export interface Assignment extends Slot {
+  bonusRemaining: number;
+}
+
+export interface BonusAward {
+  id: string;
+  slotId: string;
+  teamId: string;
+  teamName?: string;
+  amount: number;
+  reason: string;
+  awardedAt: string;
 }
 
 export interface LedgerEntry {
@@ -92,6 +102,7 @@ export interface AdminDashboard {
   teams: Team[];
   scorers: Scorer[];
   slots: Slot[];
+  bonuses: BonusAward[];
   ledger: LedgerEntry[];
   nfcTokens: NfcTokenRecord[];
   balances: Record<string, number>;
@@ -160,6 +171,23 @@ export interface CampRepository {
     key: string,
   ): Promise<void>;
   reverseEntry(entryId: string, reason: string): Promise<void>;
+  correctSlotResult(input: {
+    slotId: string;
+    result:
+      | { outcome: MatchOutcome }
+      | {
+          firstTeamId: string;
+          secondTeamId: string;
+          thirdTeamId: string;
+        };
+    reason: string;
+    key: string;
+  }): Promise<void>;
+  undoBonus(input: {
+    bonusId: string;
+    reason: string;
+    key: string;
+  }): Promise<void>;
   getAssignments(): Promise<Assignment[]>;
   submitResult(
     slotId: string,
